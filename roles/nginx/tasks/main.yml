@@ -1,0 +1,3 @@
+---
+- name: Nginx | NGINX set config
+  import_tasks: nginx.yml

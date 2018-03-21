@@ -1,0 +1,26 @@
+FROM jenkins/jenkins:lts
+
+USER root
+RUN dpkg --add-architecture i386
+RUN apt-get -y update
+RUN apt-get -y install libc6-dev-i386 libc6-i386 zlib1g:i386 
+RUN apt-get -y install \
+     apt-transport-https \
+     ca-certificates \
+     curl \
+     gnupg2 \
+     software-properties-common
+RUN curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - 
+RUN echo "deb [arch=amd64] https://download.docker.com/linux/debian stretch stable" >> /etc/apt/sources.list
+
+RUN apt-get update -y
+
+RUN apt-get install docker-ce python-pip  -y
+RUN pip install awscli 
+RUN apt-get install groff-base -y
+COPY docker_h /usr/bin/docker_h
+RUN chmod a+x /usr/bin/docker_h
+RUN usermod -aG docker jenkins
+
+ENV JAVA_OPTS "-Dhudson.security.csrf.requestfield=\"Jenkins-Crumb\" -Dhudson.model.DirectoryBrowserSupport.CSP=\"sandbox allow-scripts; style-src 'unsafe-inline' *;script-src 'unsafe-inline' *;\""
+USER jenkins

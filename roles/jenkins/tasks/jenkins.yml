@@ -1,0 +1,64 @@
+---
+
+- filesystem:
+    fstype: ext4
+    dev: /dev/xvdf1
+
+- name: Mount up device by label
+  mount:
+    path: /mnt/app
+    src: /dev/xvdf1
+    fstype: ext4
+    state: mounted
+
+- file:
+    path: /mnt/app/jenkins
+    state: directory
+    mode: 0777
+
+- file:
+    path: /mnt/app/docker/build/jenkins
+    state: directory
+    mode: 0777
+
+- name: "Instalando pacotes necessários..."
+  yum: name="{{ item }}" state=present
+  with_items:
+    - docker-python
+    - python-docker-py
+
+
+- template:
+    src: Dockerfile.j2
+    dest: /mnt/app/docker/build/jenkins/Dockerfile
+  notify:
+    - "build jenkins again"
+- name: force all notified handlers to run at this point, not waiting for normal sync points
+  meta: flush_handlers
+
+
+- name: Build an image and push it to a private repo
+  docker_image:
+    path: /mnt/app/docker/build/jenkins
+    name: jenkins_local
+    tag: latest
+    push: no
+
+
+
+- name: Jenkins | Start Jenkins Container
+  docker_container:
+    name: jenkins
+    image: jenkins_local
+    detach: true
+    state: started
+    privileged: yes
+    restart: yes
+    restart_policy: always
+    ports:
+    - "8080:8080"
+    - "50000:50000"
+    volumes:
+    - /mnt/app/jenkins:/var/jenkins_home
+    - /var/run/docker.sock:/var/run/docker.sock
+    - /usr/bin/docker:/usr/bin/docker

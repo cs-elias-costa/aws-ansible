@@ -1,0 +1,8 @@
+---
+
+  - name: "build jenkins again"
+    shell: "docker stop jenkins && docker rm jenkins && docker rmi -f jenkins_bppj"
+    listen: "build jenkins again"
+  - name: "restart docker"
+    service: name=docker state=restarted
+    listen: "restart docker"

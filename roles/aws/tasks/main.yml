@@ -1,0 +1,187 @@
+---
+  - name: "Create VPC - Tools"
+    ec2_vpc_net:
+      name: vpc_tools
+      cidr_block: 10.22.0.0/16
+      region: us-east-2
+      tags:
+        name: vpc_tools
+    register: vpc
+
+  - name: "Create subnet for Web"
+    ec2_vpc_subnet:
+      az: us-east-2a
+      state: present
+      vpc_id: "{{ vpc.vpc.id }}"
+      cidr: 10.22.1.0/24
+      map_public: true
+      resource_tags:
+        Name: Web
+    register: subnet_web
+
+  - name: "Create subnet APP"
+    ec2_vpc_subnet:
+      az: us-east-2c
+      state: present
+      vpc_id: "{{ vpc.vpc.id }}"
+      cidr: 10.22.2.0/24
+      map_public: false
+      resource_tags:
+        Name: App
+    register: subnet_app  
+
+  - name: "IGW for vpc-tools"
+    ec2_vpc_igw:
+      vpc_id: "{{ vpc.vpc.id }}"
+      region: us-east-2
+      state: present
+    register: igw 
+
+  - name: "Nat Gateway for vpc-tools"
+    ec2_vpc_nat_gateway:
+      state: present
+      subnet_id: "{{ subnet_web.subnet.id }}"
+      wait: yes
+      region: us-east-2
+      if_exist_do_not_create: true
+    register: nat_gateway       
+    
+  - name: "Set up public subnet route table"
+    ec2_vpc_route_table:
+      vpc_id: "{{ vpc.vpc.id }}"
+      region: us-east-2
+      tags:
+        Name: PublicRouteVPCTools
+      subnets:
+        - "{{ subnet_web.subnet.id }}"
+      routes:
+        - dest: 0.0.0.0/0
+          gateway_id: "{{ igw.gateway_id }}"
+    register: public_route_table
+
+  - name: "Set up NAT-protected route table"
+    ec2_vpc_route_table:
+      vpc_id: "{{ vpc.vpc.id }}"
+      region: us-east-2
+      tags:
+        Name: Internal
+      subnets:
+        - "{{ subnet_app.subnet.id }}"
+      routes:
+        - dest: 0.0.0.0/0
+          gateway_id: "{{ nat_gateway.nat_gateway_id }}"
+    register: nat_route_table
+
+
+  - name: AWS | Create SG
+    ec2_group:
+      name: "{{ security_group_name }}"
+      description: "{{ security_group_name }}"
+      state: present
+      vpc_id: "{{vpc.vpc.id}}"
+      rules:
+        - proto: tcp
+          ports:
+            - 22
+            - 80
+          cidr_ip: 187.72.186.16/28
+        - proto: tcp
+          ports:
+            - 22
+            - 80
+          cidr_ip: 189.125.58.128/29
+        - proto: tcp
+          ports:
+            - 22
+            - 80
+          cidr_ip: 177.69.90.16/28
+        - proto: tcp
+          ports:
+            - 22
+            - 80
+          cidr_ip: 177.69.90.16/28
+        - proto: tcp
+          ports:
+            - 22
+            - 80
+          cidr_ip: 189.125.37.208/29  
+        - proto: tcp
+          ports:
+            - 22
+            - 80
+          cidr_ip: 200.160.125.112/28
+      tags:
+        Name: "{{ security_group_name }}"         
+    register: sg
+
+  - name: AWS | Launch instance
+    ec2:
+      key_name: "{{ key }}"
+      image: "{{ image }}"
+      wait: yes
+      type: "{{ type }}"
+      count: 1
+      id: "JENKINS01"
+      group_id: "{{ sg.group_id }}"
+      vpc_subnet_id: "{{ subnet_web.subnet.id }}"
+      assign_public_ip: yes
+      region: "{{ region }}"
+      instance_tags:
+        Name: "{{ instance_name }}"
+      volumes:
+      - device_name: /dev/xvda        
+        device_type: gp2
+        volume_size: 15
+        delete_on_termination: true  
+      state: present 
+    register: machine   
+
+  #  - name: AWS | Launch instance Docker
+  #   ec2:
+  #     key_name: "{{ key }}"
+  #     image: "{{ image }}"
+  #     wait: yes
+  #     type: "{{ type }}"
+  #     count: 1
+  #     id: "DOCKERSLAVE"
+  #     group_id: "{{ sg.group_id }}"
+  #     vpc_subnet_id: "{{ subnet_app.subnet.id }}"
+  #     assign_public_ip: false
+  #     region: "{{ region }}"
+  #     instance_tags:
+  #       Name: "{{ instance_name }}"
+  #     volumes:
+  #     - device_name: /dev/xvda        
+  #       device_type: gp2
+  #       volume_size: 55
+  #       delete_on_termination: true  
+  #     state: present 
+  #   register: docker
+
+
+  - name: AWS | Service ssh up Jenkins
+    wait_for:
+      host: "{{ item.public_ip }}"
+      port: 22
+      timeout: 600
+      state: started
+    with_items: "{{ machine.instances }}"
+
+  
+  - name: AWS | Attach volume
+    ec2_vol:
+      name: "{{ ebs }}"
+      device_name: /dev/sdf
+      volume_type: gp2
+      delete_on_termination: no
+      instance: "{{ item.id }}"
+      volume_size: 60
+      region: "{{ region }}"
+    with_items: "{{ machine.instances }}"
+    register: vol
+    
+  - name: AWS | Add instance for host
+    add_host:
+      hostname: "{{ item.public_ip }}"
+      groupname: docker
+    with_items: "{{ machine.instances }}"

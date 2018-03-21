@@ -1,0 +1,22 @@
+---
+- name: "AWS | Provisioned Infra"
+  hosts: localhost
+  gather_facts: True
+  roles:
+    - aws
+  tags:
+    - infra
+
+- name: "AWS | Install Docker"
+  hosts: docker
+  become: True
+  remote_user: centos
+  vars:
+    ansible_private_key_file: "~/Downloads/devops_ecosta.pem"
+  gather_facts: True
+  roles:
+    - docker
+    - jenkins
+    - nginx
+  tags:
+    - app

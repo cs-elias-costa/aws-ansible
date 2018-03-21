@@ -1,0 +1,8 @@
+---
+
+  - name: "relaod nginx"
+    command: docker restart nginx
+    listen: "reload nginx"
+  - name: "restart docker"
+    service: name=docker state=restarted
+    listen: "restart docker"

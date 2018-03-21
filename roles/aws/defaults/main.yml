@@ -1,0 +1,7 @@
+image: ami-e1496384
+type: t2.medium
+key: your_key
+region: us-east-2
+instance_name: jenkins
+security_group_name: sg_tools
+ebs: ebs_jenkins

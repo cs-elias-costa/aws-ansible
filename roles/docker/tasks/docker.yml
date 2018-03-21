@@ -1,0 +1,20 @@
+---
+- name: "Yum repo"
+  command: yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+- name: "makecache"
+  command: yum makecache fast
+  
+- name: Docker | Install dependencies
+  yum:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - yum-utils
+    - device-mapper-persistent-data
+    - lvm2
+    - docker-ce
+
+
+- name: "Make sure Docker Running"
+  systemd: state=started name=docker enabled=yes
