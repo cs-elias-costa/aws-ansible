@@ -11,8 +11,8 @@
     mode: 0777
 
 - template:
-    src: jenkins.bppj.j2
-    dest: /mnt/app/nginx/conf.d/jenkins.bppj.conf
+    src: jenkins.j2
+    dest: /mnt/app/nginx/conf.d/jenkins.conf
 
 
 - name: Nginx | Docker Nginx
